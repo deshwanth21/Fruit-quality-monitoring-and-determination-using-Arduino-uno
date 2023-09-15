@@ -1,0 +1,73 @@
+//Just upload with mq4
+
+#include <SoftwareSerial.h>
+#define RX 2
+#define TX 3
+#define dht_apin 11 // Analog Pin sensor is connected to
+String SSID = "smart";       // AP NAME
+String PASS = "123456789"; // AP PASSWORD
+String API = "O1KVJTPTCPYUPNHK";   // Write API KEY
+String HOST = "api.thingspeak.com";
+String PORT = "80";
+int countTrueCommand;
+int countTimeCommand; 
+boolean found = false; 
+int valSensor = 1;
+
+const int mq4Pin = A0; // Pin connected to the MQ-4 sensor
+
+SoftwareSerial esp8266(RX,TX); 
+  
+void setup() {
+  Serial.begin(9600);
+  esp8266.begin(115200);
+  sendCommand("AT", 5, "OK");
+  sendCommand("AT+CWMODE=1", 5, "OK");
+  sendCommand("AT+CWJAP=\"" + SSID + "\",\"" + PASS + "\"", 20, "OK");
+}
+
+void loop() {
+  // Read the MQ-4 sensor value
+  int mq4Value = analogRead(mq4Pin);
+
+  String getData = "GET /update?api_key=" + API + "&field1=" + String(mq4Value);
+  sendCommand("AT+CIPMUX=1", 5, "OK");
+  sendCommand("AT+CIPSTART=0,\"TCP\",\"" + HOST + "\"," + PORT, 15, "OK");
+  sendCommand("AT+CIPSEND=0," + String(getData.length() + 4), 4, ">");
+  esp8266.println(getData);
+  delay(1500);
+  countTrueCommand++;
+  sendCommand("AT+CIPCLOSE=0", 5, "OK");
+}
+
+void sendCommand(String command, int maxTime, char readReplay[]) {
+  Serial.print(countTrueCommand);
+  Serial.print(". at command => ");
+  Serial.print(command);
+  Serial.print(" ");
+
+  while (countTimeCommand < (maxTime * 1)) {
+    esp8266.println(command);
+
+    if (esp8266.find(readReplay)) {
+      found = true;
+      break;
+    }
+
+    countTimeCommand++;
+  }
+  
+  if (found == true) {
+    Serial.println("OK");
+    countTrueCommand++;
+    countTimeCommand = 0;
+  }
+  
+  if (found == false) {
+    Serial.println("Fail");
+    countTrueCommand = 0;
+    countTimeCommand = 0;
+  }
+  
+  found = false;
+}
